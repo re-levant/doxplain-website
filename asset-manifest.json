@@ -1,0 +1,16 @@
+{
+  "files": {
+    "main.css": "/doxplain-website/static/css/main.887e5b27.css",
+    "main.js": "/doxplain-website/static/js/main.a8a3a217.js",
+    "static/js/787.45601d9f.chunk.js": "/doxplain-website/static/js/787.45601d9f.chunk.js",
+    "static/media/hero.png": "/doxplain-website/static/media/hero.778e97bd51dffde984c0.png",
+    "index.html": "/doxplain-website/index.html",
+    "main.887e5b27.css.map": "/doxplain-website/static/css/main.887e5b27.css.map",
+    "main.a8a3a217.js.map": "/doxplain-website/static/js/main.a8a3a217.js.map",
+    "787.45601d9f.chunk.js.map": "/doxplain-website/static/js/787.45601d9f.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.887e5b27.css",
+    "static/js/main.a8a3a217.js"
+  ]
+}
