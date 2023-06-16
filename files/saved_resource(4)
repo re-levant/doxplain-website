@@ -1,0 +1,261 @@
+(()=>{var e={63166:(e,t,r)=>{"use strict";r.d(t,{O8:()=>s,mO:()=>n});const o=function(e,t,r){const o=new RegExp("([?&])"+t+"=.*?(&|$)","i"),s=-1!==e.indexOf("?")?"&":"?";return e.match(o)?e.replace(o,"$1"+t+"="+r+"$2"):e+s+t+"="+r},s=function(e){const t=new Date;t.setTime(t.getTime()+31536e6),document.cookie="jp-premium-content-session="+e+"; expires="+t.toGMTString()+"; path=/"},n=function(e,t){let r=o(document.location.href,"token",e);t&&Object.keys(t).forEach((e=>{r=o(r,e,t[e])})),document.location.href=r}},80425:(e,t,r)=>{"object"==typeof window&&window.Jetpack_Block_Assets_Base_Url&&window.Jetpack_Block_Assets_Base_Url.url&&(r.p=window.Jetpack_Block_Assets_Base_Url.url)},47701:e=>{"use strict";e.exports=window.wp.domReady}},t={};function r(o){var s=t[o];if(void 0!==s)return s.exports;var n=t[o]={exports:{}};return e[o](n,n.exports,r),n.exports}r.n=e=>{var t=e&&e.__esModule?()=>e.default:()=>e;return r.d(t,{a:t}),t},r.d=(e,t)=>{for(var o in t)r.o(t,o)&&!r.o(e,o)&&Object.defineProperty(e,o,{enumerable:!0,get:t[o]})},r.g=function(){if("object"==typeof globalThis)return globalThis;try{return this||new Function("return this")()}catch(e){if("object"==typeof window)return window}}(),r.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),(()=>{var e;r.g.importScripts&&(e=r.g.location+"");var t=r.g.document;if(!e&&t&&(t.currentScript&&(e=t.currentScript.src),!e)){var o=t.getElementsByTagName("script");o.length&&(e=o[o.length-1].src)}if(!e)throw new Error("Automatic publicPath is not supported in this browser");e=e.replace(/#.*$/,"").replace(/\?.*$/,"").replace(/\/[^\/]+$/,"/"),r.p=e+"../"})(),(()=>{"use strict";r(80425)})(),(()=>{"use strict";var e=r(47701),t=r.n(e),o=r(63166);t()((function(){const e=document.querySelector(".wp-block-jetpack-subscriptions__container form");if(!e)return;let t="";e.payments_attached||(e.payments_attached=!0,e.addEventListener("submit",(function(r){const s=e.querySelector("input[type=email]").value;if(e.resubmitted||!s)return;r.preventDefault();const n="https://subscribe.wordpress.com/memberships/?blog="+e.dataset.blog+"&plan=newsletter&source=jetpack_subscribe&post_access_level="+e.dataset.post_access_level+"&display=alternate&email="+encodeURIComponent(s);window.scrollTo(0,0),tb_show(null,n+"&TB_iframe=true",null);const c=function(e){if("https://subscribe.wordpress.com"===e.origin&&e.data){const r=JSON.parse(e.data);r&&r.result&&r.result.jwt_token?(t=r.result.jwt_token,(0,o.O8)(t)):r&&"close"===r.action&&t?(0,o.mO)(t,{subscribe:"success"}):r&&"close"===r.action&&(window.removeEventListener("message",c),tb_remove())}};window.addEventListener("message",c,!1);document.querySelector("#TB_window").classList.add("jetpack-memberships-modal"),window.scrollTo(0,0)})))}))})()})();;
+// listen for rlt authentication events and pass them to children of this document.
+( function() {
+	var currentToken;
+	var parentOrigin;
+	var iframeOrigins;
+	var initializationListeners = [];
+	var hasBeenInitialized = false;
+	var RLT_KEY = 'jetpack:wpcomRLT';
+
+	// IE11 compat version that doesn't require on `new URL( src )`
+	function getOriginFromUrl( url ) {
+		var parser = document.createElement('a');
+		parser.href = url;
+		return parser.origin;
+	}
+
+	// run on `load` for suitable iframes, this injects the current token if available
+	function rltIframeInjector( event ) {
+		if ( ! currentToken ) {
+			return;
+		}
+		rltInjectToken( currentToken, event.target.contentWindow, getOriginFromUrl( event.target.src ) );
+	}
+
+	// run on DOMContentLoaded or later
+	function rltMonitorIframes() {
+		// wait until suitable iframes are loaded before trying to inject the RLT
+		var iframes = document.querySelectorAll( "iframe" );
+		for( var i=0; i<iframes.length; i++ ) {
+			var iframe = iframes[i];
+			if ( rltShouldAuthorizeIframe( iframe ) ) {
+				iframe.addEventListener('load', rltIframeInjector);
+			}
+		}
+
+		// listen for newly-created iframes, since some are injected dynamically
+		var observer = new MutationObserver(function( mutationsList, observer ) {
+			for(var i=0; i<mutationsList.length; i++) {
+				var mutation = mutationsList[i];
+				if (mutation.type === 'childList') {
+					for(var j=0; j<mutation.addedNodes.length; j++) {
+						var node = mutation.addedNodes[j];
+						if (node instanceof HTMLElement && node.nodeName === 'IFRAME' && rltShouldAuthorizeIframe(node)) {
+							node.addEventListener('load', rltIframeInjector);
+						}
+					}
+				}
+			}
+		});
+
+		observer.observe(document.body, { subtree: true, childList: true });
+	}
+
+	// should we inject RLT into this iframe?
+	function rltShouldAuthorizeIframe( iframe ) {
+		if ( ! Array.isArray( iframeOrigins ) ) {
+			return;
+		}
+		return iframeOrigins.indexOf( getOriginFromUrl( iframe.src ) ) >= 0;
+	}
+
+	function rltInvalidateWindowToken( token, target, origin ) {
+		if ( target && typeof target.postMessage === 'function' ) {
+			try {
+				target.postMessage( JSON.stringify( {
+					type: 'rltMessage',
+					data: {
+						event: 'invalidate',
+						token: token,
+						sourceOrigin: window.location.origin,
+					},
+				} ), origin );
+			} catch ( err ) {
+				return;
+			}
+		}
+	}
+
+	/**
+	 * PUBLIC METHODS
+	 */
+	window.rltInvalidateToken = function( token, sourceOrigin ) {
+		// invalidate in current context
+		if ( token === currentToken ) {
+			currentToken = null;
+		}
+
+		// remove from localstorage, but only if in a top level window, not iframe
+		try {
+			if ( window.location === window.parent.location && window.localStorage ) {
+				if ( window.localStorage.getItem(RLT_KEY) === token ) {
+					window.localStorage.removeItem(RLT_KEY);
+				}
+			}
+		} catch( e ) {
+			console.info("localstorage access for invalidate denied - probably blocked third-party access", window.location.href);
+		}
+
+		// invalidate in iframes
+		var iframes = document.querySelectorAll("iframe");
+		for( var i=0; i<iframes.length; i++ ) {
+			var iframe = iframes[i];
+			var iframeOrigin = getOriginFromUrl( iframe.src );
+			if ( iframeOrigin !== sourceOrigin && rltShouldAuthorizeIframe( iframe ) ) {
+				rltInvalidateWindowToken( token, iframe.contentWindow, iframeOrigin );
+			}
+		}
+
+		// invalidate in parent
+		if ( parentOrigin && parentOrigin !== sourceOrigin && window.parent ) {
+			rltInvalidateWindowToken( token, window.parent, parentOrigin );
+		}
+	}
+
+	window.rltInjectToken = function( token, target, origin ) {
+		if ( target && typeof target.postMessage === 'function' ) {
+			try {
+				target.postMessage( JSON.stringify( {
+					type: 'loginMessage',
+					data: {
+						event: 'login',
+						success: true,
+						type: 'rlt',
+						token: token,
+						sourceOrigin: window.location.origin,
+					},
+				} ), origin );
+			} catch ( err ) {
+				return;
+			}
+		}
+	};
+
+	window.rltIsAuthenticated = function() {
+		return !! currentToken;
+	};
+
+	window.rltGetToken = function() {
+		return currentToken;
+	};
+
+	window.rltAddInitializationListener = function( listener ) {
+		// if RLT is already initialized, call the listener immediately
+		if ( hasBeenInitialized ) {
+			listener( currentToken );
+		} else {
+			initializationListeners.push( listener );
+		}
+	};
+
+	// store the token in localStorage
+	window.rltStoreToken = function( token ) {
+		currentToken = token;
+		try {
+			if ( window.location === window.parent.location && window.localStorage ) {
+				window.localStorage.setItem( RLT_KEY, token );
+			}
+		} catch( e ) {
+			console.info("localstorage access denied - probably blocked third-party access", window.location.href);
+		}
+	}
+
+	window.rltInitialize = function( config ) {
+		if ( ! config || typeof window.postMessage !== 'function' ) {
+			return;
+		}
+
+		currentToken  = config.token;
+		iframeOrigins = config.iframeOrigins;
+		parentOrigin  = config.parentOrigin; // needed?
+
+		// load token from localStorage if possible, but only in top level window
+		try {
+			if ( ! currentToken && window.location === window.parent.location && window.localStorage ) {
+				currentToken = window.localStorage.getItem(RLT_KEY);
+			}
+		} catch( e ) {
+			console.info("localstorage access denied - probably blocked third-party access", window.location.href);
+		}
+
+		// listen for RLT events from approved origins
+		window.addEventListener( 'message', function( e ) {
+			var message = e && e.data;
+			if ( typeof message === 'string' ) {
+				try {
+					message = JSON.parse( message );
+				} catch ( err ) {
+					return;
+				}
+			}
+
+			var type = message && message.type;
+			var data = message && message.data;
+
+			if ( type !== 'loginMessage' ) {
+				return;
+			}
+
+			if ( data && data.type === 'rlt' && data.token !== currentToken ) {
+
+				// put into localStorage if running in top-level window (not iframe)
+				rltStoreToken( data.token );
+
+				// send to allowlisted iframes
+				var iframes = document.querySelectorAll("iframe");
+				for( var i=0; i<iframes.length; i++ ) {
+					var iframe = iframes[i];
+					if ( rltShouldAuthorizeIframe( iframe ) ) {
+						rltInjectToken( currentToken, iframe.contentWindow, getOriginFromUrl( iframe.src ) );
+					}
+				}
+
+				// send to the parent, unless the event was sent _by_ the parent
+				if ( parentOrigin && parentOrigin !== data.sourceOrigin && window.parent ) {
+					rltInjectToken( currentToken, window.parent, parentOrigin );
+				}
+			}
+		} );
+
+		// listen for RLT events from approved origins
+		window.addEventListener( 'message', function( e ) {
+			var message = e && e.data;
+			if ( typeof message === 'string' ) {
+				try {
+					message = JSON.parse( message );
+				} catch ( err ) {
+					return;
+				}
+			}
+
+			var type = message && message.type;
+			var data = message && message.data;
+
+			if ( type !== 'rltMessage' ) {
+				return;
+			}
+
+			if ( data && data.event === 'invalidate' && data.token === currentToken ) {
+				rltInvalidateToken( data.token );
+			}
+		} );
+
+		if ( iframeOrigins ) {
+			if ( document.readyState !== 'loading' ) {
+				rltMonitorIframes();
+			} else {
+				window.addEventListener( 'DOMContentLoaded', rltMonitorIframes );
+			}
+		}
+
+		initializationListeners.forEach( function( listener ) {
+			listener( currentToken );
+		} );
+
+		initializationListeners = [];
+
+		hasBeenInitialized = true;
+	};
+} )();
+;
